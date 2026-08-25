@@ -1,7 +1,7 @@
 <html>
 <body>
 <pre><code>&lt;script&gt;
-(function universalSugarCubeTrainerSafeNames() {
+(function universalSugarCubeTrainerSmartWhitelist() {
   let targetWindow = window;
   let doc = document;
 
@@ -25,39 +25,24 @@
     return;
   }
 
-  // --- LIVE MEMORY FETCHER ---
   function getLiveVars() {
     return SC.State.variables || (SC.State.active && SC.State.active.variables) || {};
   }
 
-  // --- SAFE SCREEN REDRAW ---
   function updateScreenSafely() {
     try {
-      if (typeof SC.UI !== 'undefined' && typeof SC.UI.update === 'function') {
-        SC.UI.update();
-      }
-      if (typeof SC.Engine.show === 'function') {
-        SC.Engine.show(); 
-      } else if (SC.Engine && SC.State.passage) {
-        SC.Engine.play(SC.State.passage); 
-      }
-    } catch(err) {
-      console.warn("Screen update warning: ", err);
-    }
+      if (typeof SC.UI !== 'undefined' && typeof SC.UI.update === 'function') SC.UI.update();
+      if (typeof SC.Engine.show === 'function') SC.Engine.show(); 
+      else if (SC.Engine && SC.State.passage) SC.Engine.play(SC.State.passage); 
+    } catch(err) {}
   }
 
-  // --- CLEAN VARIABLE & SCENE COLLECTOR ---
   function getMasterList() {
     let allEntries = new Set();
     
-    // 1. SCENE SCRAPER
     try {
       doc.querySelectorAll('tw-passagedata').forEach(el => {
         let name = el.getAttribute('name');
-        if (name) allEntries.add(`[SCENE] ${name}`);
-      });
-      doc.querySelectorAll('div[tiddler]').forEach(el => {
-        let name = el.getAttribute('tiddler');
         if (name) allEntries.add(`[SCENE] ${name}`);
       });
       if (SC.Story && typeof SC.Story.lookupWith === 'function') {
@@ -67,7 +52,6 @@
       }
     } catch(e) {}
 
-    // 2. VARIABLE SCRAPER
     const liveVars = getLiveVars();
 
     function collectKeysRecursive(obj, prefix = '', visited = new Set()) {
@@ -100,7 +84,6 @@
 
   let masterList = getMasterList();
 
-  // --- BUILD UI ---
   let modal = doc.getElementById('sugar-master-modal');
   if (modal) modal.remove();
 
@@ -113,7 +96,7 @@
     width: 480px; max-height: 85vh; overflow-y: auto; border: 2px solid #00E676; box-sizing: border-box;
   `;
   modal.innerHTML = `
-    &lt;h3 style="margin: 0 0 6px 0; font-size: 16px; color: #00E676;"&gt;⚡ Ultimate God Mode (Safe Names)&lt;/h3&gt;
+    &lt;h3 style="margin: 0 0 6px 0; font-size: 16px; color: #00E676;"&gt;⚡ God Mode (Corruption Fixed)&lt;/h3&gt;
     &lt;p style="font-size: 11px; color: #aaa; margin: 0 0 8px 0;"&gt;Loaded ${masterList.length} items. Press ' \` ' to toggle.&lt;/p&gt;
     
     &lt;div id="sugar-status-msg" style="display:none; background: #388E3C; color: white; padding: 6px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; text-align: center; font-weight: bold;"&gt;&lt;/div&gt;
@@ -126,14 +109,12 @@
       &lt;input type="text" id="sugar-custom-val" value="100" style="flex: 1; padding: 6px; background: #222; color: #00E676; border: 1px solid #555; border-radius: 4px; font-weight: bold; font-size: 14px;" /&gt;
     &lt;/div&gt;
 
-    &lt;!-- BUTTON CONTROLS --&gt;
     &lt;div style="display: flex; gap: 6px; margin-bottom: 6px;"&gt;
       &lt;button id="sugar-action-btn" style="flex: 1; background: #00C853; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;"&gt;Inject Var / Jump Scene&lt;/button&gt;
-      &lt;button id="sugar-nuke-btn" style="background: #E65100; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;"&gt;Fix Common Stats&lt;/button&gt;
     &lt;/div&gt;
     
     &lt;div style="margin-bottom: 6px;"&gt;
-      &lt;button id="sugar-maxall-btn" style="width: 100%; background: linear-gradient(135deg, #FFD700, #FF8F00); color: #111; border: none; padding: 11px; border-radius: 4px; cursor: pointer; font-weight: 900; font-size: 14px; text-transform: uppercase; box-shadow: 0 3px 10px rgba(255,215,0,0.4);"&gt;⚡ MAX ALL (Safe Names)&lt;/button&gt;
+      &lt;button id="sugar-maxall-btn" style="width: 100%; background: linear-gradient(135deg, #FFD700, #FF8F00); color: #111; border: none; padding: 11px; border-radius: 4px; cursor: pointer; font-weight: 900; font-size: 14px; text-transform: uppercase; box-shadow: 0 3px 10px rgba(255,215,0,0.4);"&gt;⚡ MAX ALL (MAXES CORRUPTION TOO)&lt;/button&gt;
     &lt;/div&gt;
 
     &lt;div style="display: flex; gap: 6px;"&gt;
@@ -162,9 +143,7 @@
       let opt = doc.createElement('option');
       opt.value = item;
       opt.textContent = item;
-      if (item.startsWith('[SCENE]')) {
-        opt.style.color = '#FFCA28';
-      }
+      if (item.startsWith('[SCENE]')) opt.style.color = '#FFCA28';
       resultsSelect.appendChild(opt);
     });
   }
@@ -180,10 +159,7 @@
 
   doc.getElementById('sugar-action-btn').addEventListener('click', () => {
     const val = resultsSelect.value;
-    if (!val) {
-      showStatus("Please select an item first!", true);
-      return;
-    }
+    if (!val) return showStatus("Please select an item first!", true);
 
     if (val.startsWith('[VAR] ')) {
       let varPath = val.replace('[VAR] ', '');
@@ -198,12 +174,10 @@
         let liveVars = getLiveVars(); 
         let parts = varPath.split('.');
         let targetObj = liveVars;
-        
         for (let i = 0; i &lt; parts.length - 1; i++) {
           if (!targetObj[parts[i]]) targetObj[parts[i]] = {}; 
           targetObj = targetObj[parts[i]];
         }
-        
         targetObj[parts[parts.length - 1]] = assignedVal;
         updateScreenSafely();
         showStatus(`✅ Forced ${varPath} to ${assignedVal}`);
@@ -211,9 +185,8 @@
         showStatus(`Error setting variable: ` + err.message, true);
       }
     } else if (val.startsWith('[SCENE] ')) {
-      let sceneName = val.replace('[SCENE] ', '');
       try {
-        SC.Engine.play(sceneName);
+        SC.Engine.play(val.replace('[SCENE] ', ''));
         modal.style.display = 'none';
       } catch(err) {
         showStatus(`Error jumping to scene: ` + err.message, true);
@@ -221,117 +194,88 @@
     }
   });
 
-  doc.getElementById('sugar-nuke-btn').addEventListener('click', () => {
-    let liveVars = getLiveVars();
-    let changes = 0;
+  const safeZeroKeywords = [
+    'trauma', 'pain', 'stress', 'fatigue', 'tired', 'dirt', 'filth', 'hunger', 'thirst', 
+    'suspicion', 'threat', 'danger', 'fear'
+  ];
 
-    function huntAndMax(obj, visited = new Set()) {
-      if (!obj || typeof obj !== 'object') return;
-      if (visited.has(obj)) return;
-      visited.add(obj);
+  const safeSinKeywords = [
+    'corruption', 'arousal', 'lust', 'horny', 'promiscuity', 'exhibitionism', 'deviancy'
+  ];
 
-      Object.keys(obj).forEach(k => {
-        let lKey = k.toLowerCase();
-        let val = obj[k];
+  const safeCapKeywords = [
+    'energy', 'stamina', 'hp', 'health', 'mana', 
+    'love', 'affection', 'submission', 'obedience', 
+    'level', 'skill', 'stat'
+  ];
 
-        // Protect names, IDs, and indices
-        if (lKey.includes('name') || lKey.includes('id') || lKey.includes('index') || lKey.includes('type')) return;
-
-        if (typeof val === 'number') {
-          if (lKey.includes('lust') || lKey.includes('arousal') || lKey.includes('energy') || lKey.includes('strength') || lKey.includes('money') || lKey.includes('cash') || lKey.includes('love') || lKey.includes('affection') || lKey.includes('submission')) { 
-            obj[k] = 999999; 
-            changes++; 
-          }
-        } else if (val && typeof val === 'object' && !Array.isArray(val)) {
-          huntAndMax(val, visited);
-        }
-      });
-    }
-
-    huntAndMax(liveVars);
-    updateScreenSafely();
-    showStatus(`✅ Auto-Fixed ${changes} stats/resources!`);
-  });
+  const safeMaxKeywords = [
+    'money', 'cash', 'gold', 'coin', 'credit', 'wealth', 
+    'exp', 'experience', 'points', 'score'
+  ];
+  
+  const safeBoolKeywords = [
+    'unlocked', 'owned', 'complete', 'seen', 'known', 'active', 'dlc', 'event', 'buy', 'available'
+  ];
 
   doc.getElementById('sugar-maxall-btn').addEventListener('click', () => {
     let liveVars = getLiveVars();
-    const QUADRILLION = 9999999000000000;
-    let modifiedCount = 0;
+    let zeroCount = 0;
+    let capCount = 0;
+    let maxCount = 0;
+    let sinCount = 0;
+    let boolCount = 0;
 
-    // Words/keys to NEVER touch so names and identity structures stay safe
-    const skipWords = [
-      'name', 'id', 'index', 'type', 'gender', 'pronoun', 
-      'skin', 'hair', 'eye', 'face', 'body', 'age', 'height', 
-      'build', 'voice', 'tone', 'personality', 'job', 'role', 'status'
-    ];
-
-    function deepMaxEverything(obj, visited = new Set()) {
+    function deepMaxSmart(obj, visited = new Set()) {
       if (!obj || typeof obj !== 'object') return;
       if (visited.has(obj)) return;
       visited.add(obj);
 
       Object.keys(obj).forEach(key => {
+        if (key.startsWith('$') || typeof obj[key] === 'function') return;
+        
         let val = obj[key];
         let lKey = key.toLowerCase();
 
-        if (key.startsWith('$') || typeof val === 'function') return;
-
-        // Skip protection check for names, IDs, appearances, etc.
-        if (skipWords.some(word => lKey.includes(word))) return;
-
         if (val && typeof val === 'object') {
-          if (Array.isArray(val)) {
-            val.forEach(item => {
-              if (item && typeof item === 'object') deepMaxEverything(item, visited);
-            });
-          } else {
-            deepMaxEverything(val, visited);
-            if ('unlocked' in val) { val.unlocked = true; modifiedCount++; }
-            if ('owned' in val) { val.owned = true; modifiedCount++; }
-            if ('level' in val && typeof val.level === 'number') { val.level = 999; modifiedCount++; }
-          }
+          deepMaxSmart(val, visited);
         } else if (typeof val === 'number') {
-          if (lKey.includes('energy') || lKey.includes('strength') || lKey.includes('hp') || lKey.includes('stamina')) {
-            obj[key] = 999;
-          } else if (lKey.includes('arousal') || lKey.includes('lust') || lKey.includes('corruption') || lKey.includes('love') || lKey.includes('affection')) {
-            obj[key] = 100;
-          } else {
-            obj[key] = QUADRILLION;
+          
+          if (safeZeroKeywords.some(word => lKey.includes(word))) {
+            obj[key] = 0;
+            zeroCount++;
+          } 
+          else if (safeSinKeywords.some(word => lKey.includes(word))) {
+            obj[key] = 999999; 
+            sinCount++;
           }
-          modifiedCount++;
+          else if (safeCapKeywords.some(word => lKey.includes(word))) {
+            obj[key] = 99999;
+            capCount++;
+          } 
+          else if (safeMaxKeywords.some(word => lKey.includes(word))) {
+            obj[key] = 9999999;
+            maxCount++;
+          }
+
         } else if (typeof val === 'boolean') {
-          if (
-            lKey.includes('dlc') || lKey.includes('unlock') || lKey.includes('event') || 
-            lKey.includes('active') || lKey.includes('owned') || lKey.includes('buy') || 
-            lKey.includes('available') || lKey.includes('complete') || lKey.includes('pass') ||
-            lKey.includes('plot') || lKey.includes('voter') || lKey.includes('vote') ||
-            lKey.includes('seen') || lKey.includes('flag') || lKey.includes('known')
-          ) {
+          if (safeBoolKeywords.some(word => lKey.includes(word))) {
             obj[key] = true;
-            modifiedCount++;
+            boolCount++;
           }
         }
       });
     }
 
-    deepMaxEverything(liveVars);
-
-    liveVars.money = QUADRILLION;
-    liveVars.cash = QUADRILLION;
-    liveVars.gold = QUADRILLION;
-    liveVars.energy = 999;
-    liveVars.arousal = 100;
-
+    deepMaxSmart(liveVars);
     updateScreenSafely();
-    showStatus(`⚡ MAX ALL COMPLETE! Modified ${modifiedCount} properties (Names Protected).`);
-    console.log(`⚡ Max All executed successfully. Updated ${modifiedCount} keys while keeping names safe.`);
+    showStatus(`⚡ DONE! Maxed Corruption/Lust (${sinCount}), Economy (${maxCount}), and Zeroed Trauma (${zeroCount}).`);
   });
 
   doc.getElementById('sugar-close-btn').addEventListener('click', () => {
     modal.style.display = 'none';
   });
 
-  // Global Hotkey Handler
   const handleToggle = event => {
     const isBacktick = event.key === '`' || event.code === 'Backquote' || event.keyCode === 192;
     if (isBacktick) {
@@ -340,7 +284,6 @@
       if (!activeModal) return;
       const isHidden = activeModal.style.display === 'none';
       activeModal.style.display = isHidden ? 'block' : 'none';
-      
       if (isHidden) {
          masterList = getMasterList();
          renderDropdown(searchBox.value);
@@ -357,7 +300,7 @@
     targetWindow.addEventListener('keydown', handleToggle);
   }
 
-  console.log("🚀 Safe-Name Trainer Loaded! Press ` (Backtick) to open or close the menu.");
+  console.log("🚀 SMART WHITELIST Trainer Loaded! Press ` to toggle.");
 })();
 &lt;/script&gt;</code></pre>
 </body>

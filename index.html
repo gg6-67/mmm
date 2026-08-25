@@ -1,0 +1,384 @@
+<html>
+<body>
+(function universalSugarCubeTrainerFixed() {
+  // Find SugarCube and correct document context
+  let targetWindow = window;
+  let doc = document;
+
+  if (!window.SugarCube) {
+    const frames = document.querySelectorAll('iframe, embed');
+    for (let f of frames) {
+      try {
+        if (f.contentWindow && f.contentWindow.SugarCube) {
+          targetWindow = f.contentWindow;
+          doc = targetWindow.document;
+          break;
+        }
+      } catch(e) {}
+    }
+  }
+
+  const SC = targetWindow.SugarCube || window.SugarCube;
+
+  if (!SC || !SC.State) {
+    alert("❌ SugarCube not found! Make sure you are on the game tab.");
+    return;
+  }
+
+  // --- LIVE MEMORY FETCHER ---
+  function getLiveVars() {
+    return SC.State.variables || (SC.State.active && SC.State.active.variables) || {};
+  }
+
+  // --- SAFE SCREEN REDRAW ---
+  function updateScreenSafely() {
+    try {
+      if (typeof SC.UI !== 'undefined' && typeof SC.UI.update === 'function') {
+        SC.UI.update();
+      }
+      if (typeof SC.Engine.show === 'function') {
+        SC.Engine.show();
+      } else if (SC.Engine && SC.State.passage) {
+        SC.Engine.play(SC.State.passage);
+      }
+    } catch(err) {
+      console.warn("Screen update warning: ", err);
+    }
+  }
+
+  // --- SMART CHARACTER & VARIABLE COLLECTOR ---
+  function getMasterList() {
+    let allEntries = new Set();
+   
+    // 1. SCENE SCRAPER
+    try {
+      doc.querySelectorAll('tw-passagedata').forEach(el => {
+        let name = el.getAttribute('name');
+        if (name) allEntries.add(`[SCENE] ${name}`);
+      });
+      doc.querySelectorAll('div[tiddler]').forEach(el => {
+        let name = el.getAttribute('tiddler');
+        if (name) allEntries.add(`[SCENE] ${name}`);
+      });
+      if (SC.Story && typeof SC.Story.lookupWith === 'function') {
+        SC.Story.lookupWith(() => true).forEach(p => {
+          if (p.title) allEntries.add(`[SCENE] ${p.title}`);
+        });
+      }
+    } catch(e) {}
+
+    // 2. SMART VARIABLE & CHARACTER SCRAPER
+    const liveVars = getLiveVars();
+
+    function resolveCharacterName(obj, fallbackKey) {
+      if (!obj || typeof obj !== 'object') return fallbackKey;
+      try {
+        if (typeof obj.name === 'function') return obj.name();
+        if (typeof obj.name === 'string' && obj.name.trim() !== '') return obj.name;
+        if (typeof obj.fullname === 'function') return obj.fullname();
+        if (typeof obj.fullname === 'string' && obj.fullname.trim() !== '') return obj.fullname;
+        if (typeof obj.firstname === 'function') return obj.firstname();
+        if (typeof obj.firstname === 'string' && obj.firstname.trim() !== '') return obj.firstname;
+        if (typeof obj.alias === 'string' && obj.alias.trim() !== '') return obj.alias;
+      } catch(e) {}
+      return fallbackKey;
+    }
+
+    function collectKeysRecursive(obj, prefix = '', visited = new Set()) {
+      if (!obj || typeof obj !== 'object') return;
+      if (visited.has(obj)) return;
+      visited.add(obj);
+
+      try {
+        Object.keys(obj).forEach(k => {
+          if (k.startsWith('$')) return;
+          let fullKey = prefix ? `${prefix}.${k}` : k;
+          let val = obj[k];
+
+          let isCharacterContainer = prefix.toLowerCase().includes('npclist') ||
+                                     prefix.toLowerCase().includes('character') ||
+                                     prefix.toLowerCase().includes('companion') ||
+                                     prefix.toLowerCase().includes('actor');
+
+          if (isCharacterContainer && val && typeof val === 'object' && !Array.isArray(val)) {
+            let charName = resolveCharacterName(val, k);
+            allEntries.add(`[CHAR] ${charName} (${fullKey})`);
+          }
+
+          allEntries.add(`[VAR] ${fullKey}`);
+         
+          if (val && typeof val === 'object' && !Array.isArray(val)) {
+            collectKeysRecursive(val, fullKey, visited);
+          }
+        });
+      } catch(e) {}
+    }
+
+    Object.keys(liveVars).forEach(k => {
+      if (k.startsWith('$')) return;
+      allEntries.add(`[VAR] ${k}`);
+      collectKeysRecursive(liveVars[k], k, new Set());
+    });
+   
+    return [...allEntries].sort();
+  }
+
+  let masterList = getMasterList();
+
+  // --- BUILD UI ---
+  let modal = doc.getElementById('sugar-master-modal') || document.getElementById('sugar-master-modal');
+  if (modal) modal.remove();
+
+  modal = doc.createElement('div');
+  modal.id = 'sugar-master-modal';
+  modal.style.cssText = `
+    display: block; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+    background: #111; color: #fff; padding: 16px; border-radius: 8px;
+    box-shadow: 0 5px 30px rgba(0,0,0,0.9); z-index: 999999; font-family: sans-serif;
+    width: 480px; max-height: 85vh; overflow-y: auto; border: 2px solid #00E676; box-sizing: border-box;
+  `;
+  modal.innerHTML = `
+    <h3 style="margin: 0 0 6px 0; font-size: 16px; color: #00E676;">⚡ Ultimate God Mode + Fixed Chars</h3>
+    <p style="font-size: 11px; color: #aaa; margin: 0 0 8px 0;">Loaded ${masterList.length} items. Press ' \` ' to toggle.</p>
+   
+    <div id="sugar-status-msg" style="display:none; background: #388E3C; color: white; padding: 6px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; text-align: center; font-weight: bold;"></div>
+   
+    <input type="text" id="sugar-search-box" placeholder="Search [CHAR], [VAR] stats, or [SCENE]..." style="width: 100%; padding: 8px; background: #222; color: #00E676; border: 1px solid #555; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; font-size: 13px; font-weight: bold;" />
+    <select id="sugar-results-select" size="10" style="width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #555; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; font-family: monospace; font-size: 12px;"></select>
+   
+    <div style="display: flex; gap: 6px; margin-bottom: 8px; align-items: center;">
+      <label style="font-size: 12px; color: #ccc; white-space: nowrap;">Set Var To:</label>
+      <input type="text" id="sugar-custom-val" value="100" style="flex: 1; padding: 6px; background: #222; color: #00E676; border: 1px solid #555; border-radius: 4px; font-weight: bold; font-size: 14px;" />
+    </div>
+
+    <!-- BUTTON CONTROLS -->
+    <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+      <button id="sugar-action-btn" style="flex: 1; background: #00C853; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Inject Var / Jump Scene</button>
+      <button id="sugar-nuke-btn" style="background: #E65100; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Fix Common Stats</button>
+    </div>
+   
+    <div style="margin-bottom: 6px;">
+      <button id="sugar-maxall-btn" style="width: 100%; background: linear-gradient(135deg, #FFD700, #FF8F00); color: #111; border: none; padding: 11px; border-radius: 4px; cursor: pointer; font-weight: 900; font-size: 14px; text-transform: uppercase; box-shadow: 0 3px 10px rgba(255,215,0,0.4);">⚡ MAX ALL (Stats, Money & Unlocks)</button>
+    </div>
+
+    <div style="display: flex; gap: 6px;">
+      <button id="sugar-refresh-dropdown-btn" style="flex: 1; background: #444; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;">Refresh List</button>
+      <button id="sugar-close-btn" style="flex: 1; background: #d32f2f; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;">Close UI (Press \` )</button>
+    </div>
+  `;
+  doc.body.appendChild(modal);
+
+  const searchBox = doc.getElementById('sugar-search-box');
+  const resultsSelect = doc.getElementById('sugar-results-select');
+  const customValInput = doc.getElementById('sugar-custom-val');
+  const statusMsg = doc.getElementById('sugar-status-msg');
+
+  function showStatus(text, isError = false) {
+    statusMsg.style.display = 'block';
+    statusMsg.style.background = isError ? '#D32F2F' : '#00C853';
+    statusMsg.textContent = text;
+    setTimeout(() => { statusMsg.style.display = 'none'; }, 3000);
+  }
+
+  function renderDropdown(filter = '') {
+    resultsSelect.innerHTML = '';
+    const filtered = masterList.filter(item => item.toLowerCase().includes(filter.toLowerCase())).slice(0, 500);
+    filtered.forEach(item => {
+      let opt = doc.createElement('option');
+      opt.value = item;
+      opt.textContent = item;
+      if (item.startsWith('[SCENE]')) {
+        opt.style.color = '#FFCA28';
+      } else if (item.startsWith('[CHAR]')) {
+        opt.style.color = '#00E676';
+        opt.style.fontWeight = 'bold';
+      }
+      resultsSelect.appendChild(opt);
+    });
+  }
+  renderDropdown();
+
+  searchBox.addEventListener('input', e => renderDropdown(e.target.value));
+
+  doc.getElementById('sugar-refresh-dropdown-btn').addEventListener('click', () => {
+    masterList = getMasterList();
+    renderDropdown(searchBox.value);
+    showStatus(`Refreshed! Found ${masterList.length} items.`);
+  });
+
+  doc.getElementById('sugar-action-btn').addEventListener('click', () => {
+    const val = resultsSelect.value;
+    if (!val) {
+      showStatus("Please select an item first!", true);
+      return;
+    }
+
+    let targetPath = val;
+    if (val.startsWith('[CHAR] ')) {
+      let match = val.match(/\((.*?)\)$/);
+      if (match) targetPath = `[VAR] ${match[1]}`;
+    }
+
+    if (targetPath.startsWith('[VAR] ')) {
+      let varPath = targetPath.replace('[VAR] ', '');
+      let rawInput = customValInput.value;
+      let assignedVal = rawInput;
+     
+      if (!isNaN(rawInput) && rawInput.trim() !== '') assignedVal = Number(rawInput);
+      else if (rawInput.toLowerCase() === 'true') assignedVal = true;
+      else if (rawInput.toLowerCase() === 'false') assignedVal = false;
+
+      try {
+        let liveVars = getLiveVars();
+        let parts = varPath.split('.');
+        let targetObj = liveVars;
+       
+        for (let i = 0; i < parts.length - 1; i++) {
+          if (!targetObj[parts[i]]) targetObj[parts[i]] = {};
+          targetObj = targetObj[parts[i]];
+        }
+       
+        targetObj[parts[parts.length - 1]] = assignedVal;
+        updateScreenSafely();
+        showStatus(`✅ Forced ${varPath} to ${assignedVal}`);
+      } catch(err) {
+        showStatus(`Error setting variable: ` + err.message, true);
+      }
+    } else if (val.startsWith('[SCENE] ')) {
+      let sceneName = val.replace('[SCENE] ', '');
+      try {
+        SC.Engine.play(sceneName);
+        modal.style.display = 'none';
+      } catch(err) {
+        showStatus(`Error jumping to scene: ` + err.message, true);
+      }
+    }
+  });
+
+  doc.getElementById('sugar-nuke-btn').addEventListener('click', () => {
+    let liveVars = getLiveVars();
+    let changes = 0;
+
+    function huntAndMax(obj, visited = new Set()) {
+      if (!obj || typeof obj !== 'object') return;
+      if (visited.has(obj)) return;
+      visited.add(obj);
+
+      Object.keys(obj).forEach(k => {
+        let lKey = k.toLowerCase();
+        let val = obj[k];
+
+        if (typeof val === 'number') {
+          if (lKey.includes('lust') || lKey.includes('arousal') || lKey.includes('energy') || lKey.includes('strength') || lKey.includes('money') || lKey.includes('cash') || lKey.includes('love') || lKey.includes('affection') || lKey.includes('submission')) {
+            obj[k] = 999999;
+            changes++;
+          }
+        } else if (val && typeof val === 'object' && !Array.isArray(val)) {
+          huntAndMax(val, visited);
+        }
+      });
+    }
+
+    huntAndMax(liveVars);
+    updateScreenSafely();
+    showStatus(`✅ Auto-Fixed ${changes} character stats/resources!`);
+  });
+
+  doc.getElementById('sugar-maxall-btn').addEventListener('click', () => {
+    let liveVars = getLiveVars();
+    const QUADRILLION = 9999999000000000;
+    let modifiedCount = 0;
+
+    function deepMaxEverything(obj, visited = new Set()) {
+      if (!obj || typeof obj !== 'object') return;
+      if (visited.has(obj)) return;
+      visited.add(obj);
+
+      Object.keys(obj).forEach(key => {
+        let val = obj[key];
+        let lKey = key.toLowerCase();
+
+        if (key.startsWith('$') || typeof val === 'function') return;
+
+        if (val && typeof val === 'object') {
+          if (Array.isArray(val)) {
+            val.forEach(item => {
+              if (item && typeof item === 'object') deepMaxEverything(item, visited);
+            });
+          } else {
+            deepMaxEverything(val, visited);
+            if ('unlocked' in val) { val.unlocked = true; modifiedCount++; }
+            if ('owned' in val) { val.owned = true; modifiedCount++; }
+            if ('level' in val && typeof val.level === 'number') { val.level = 999; modifiedCount++; }
+          }
+        } else if (typeof val === 'number') {
+          if (lKey.includes('energy') || lKey.includes('strength') || lKey.includes('hp') || lKey.includes('stamina')) {
+            obj[key] = 999;
+          } else if (lKey.includes('arousal') || lKey.includes('lust') || lKey.includes('corruption') || lKey.includes('love') || lKey.includes('affection')) {
+            obj[key] = 100;
+          } else {
+            obj[key] = QUADRILLION;
+          }
+          modifiedCount++;
+        } else if (typeof val === 'boolean') {
+          if (
+            lKey.includes('dlc') || lKey.includes('unlock') || lKey.includes('event') ||
+            lKey.includes('active') || lKey.includes('owned') || lKey.includes('buy') ||
+            lKey.includes('available') || lKey.includes('complete') || lKey.includes('pass') ||
+            lKey.includes('plot') || lKey.includes('voter') || lKey.includes('vote') ||
+            lKey.includes('seen') || lKey.includes('flag') || lKey.includes('known')
+          ) {
+            obj[key] = true;
+            modifiedCount++;
+          }
+        }
+      });
+    }
+
+    deepMaxEverything(liveVars);
+
+    liveVars.money = QUADRILLION;
+    liveVars.cash = QUADRILLION;
+    liveVars.gold = QUADRILLION;
+    liveVars.energy = 999;
+    liveVars.arousal = 100;
+
+    updateScreenSafely();
+    showStatus(`⚡ MAX ALL COMPLETE! Modified ${modifiedCount} properties.`);
+    console.log(`⚡ Max All executed successfully. Updated ${modifiedCount} keys.`);
+  });
+
+  doc.getElementById('sugar-close-btn').addEventListener('click', () => {
+    modal.style.display = 'none';
+  });
+
+  // Robust Global Hotkey Handler
+  const handleToggle = event => {
+    const isBacktick = event.key === '`' || event.code === 'Backquote' || event.keyCode === 192;
+    if (isBacktick) {
+      event.preventDefault();
+      const activeModal = doc.getElementById('sugar-master-modal') || document.getElementById('sugar-master-modal');
+      if (!activeModal) return;
+      const isHidden = activeModal.style.display === 'none';
+      activeModal.style.display = isHidden ? 'block' : 'none';
+     
+      if (isHidden) {
+         masterList = getMasterList();
+         renderDropdown(searchBox.value);
+      }
+    }
+  };
+
+  if (!window._sugarGlobalHandlerBound) {
+    window._sugarGlobalHandlerBound = true;
+    window.addEventListener('keydown', handleToggle);
+  }
+  if (targetWindow !== window && !targetWindow._sugarFrameHandlerBound) {
+    targetWindow._sugarFrameHandlerBound = true;
+    targetWindow.addEventListener('keydown', handleToggle);
+  }
+
+  console.log("🚀 Trainer Loaded & Fixed! Press ` (Backtick) to open or close the menu.");
+})();
+</body>
+</html>

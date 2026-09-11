@@ -1,6 +1,90 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>SugarCube Multi-Context Trainer Injector</title>
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            background: #1a1a1a;
+            font-family: sans-serif;
+            color: #fff;
+            overflow: hidden;
+        }
+        #loader-bar {
+            display: flex;
+            align-items: center;
+            background: #111;
+            padding: 8px 15px;
+            border-bottom: 2px solid #00E676;
+            gap: 10px;
+            box-sizing: border-box;
+            height: 50px;
+            flex-wrap: wrap;
+        }
+        #loader-bar input {
+            flex: 2;
+            min-width: 250px;
+            padding: 6px 10px;
+            background: #222;
+            color: #00E676;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 13px;
+            outline: none;
+        }
+        #loader-bar select {
+            flex: 1;
+            padding: 6px 10px;
+            background: #222;
+            color: #FFCA28;
+            border: 1px solid #555;
+            border-radius: 4px;
+            font-size: 13px;
+            font-weight: bold;
+            outline: none;
+        }
+        #loader-bar button {
+            background: #00C853;
+            color: white;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 13px;
+        }
+        #loader-bar button:hover {
+            background: #00E676;
+            color: #111;
+        }
+        #game-frame {
+            width: 100%;
+            height: calc(100% - 50px);
+            border: none;
+            background: #000;
+        }
+    </style>
+</head>
 <body>
-<pre><code>&lt;script&gt;
+
+<div id="loader-bar">
+    <input type="text" id="game-url" placeholder="Paste game URL here..." />
+    <select id="context-selector">
+        <option value="auto">Auto-Detect Best Context</option>
+        <option value="top">Top Window (Main Page)</option>
+        <option value="frames">All Sub-Frames / Iframes</option>
+    </select>
+    <button id="load-btn">Load & Inject</button>
+</div>
+
+<iframe id="game-frame" sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"></iframe>
+
+<script>
+const trainerCode = `
 (function universalSugarCubeTrainerSmartWhitelist() {
   let targetWindow = window;
   let doc = document;
@@ -21,7 +105,8 @@
   const SC = targetWindow.SugarCube || window.SugarCube;
 
   if (!SC || !SC.State) {
-    alert("❌ SugarCube not found! Make sure you are on the game tab.");
+    console.warn("⏳ SugarCube not detected immediately in this context. Retrying...");
+    setTimeout(universalSugarCubeTrainerSmartWhitelist, 1000);
     return;
   }
 
@@ -43,11 +128,11 @@
     try {
       doc.querySelectorAll('tw-passagedata').forEach(el => {
         let name = el.getAttribute('name');
-        if (name) allEntries.add(`[SCENE] ${name}`);
+        if (name) allEntries.add(\`[SCENE] \${name}\`);
       });
       if (SC.Story && typeof SC.Story.lookupWith === 'function') {
         SC.Story.lookupWith(() => true).forEach(p => {
-          if (p.title) allEntries.add(`[SCENE] ${p.title}`);
+          if (p.title) allEntries.add(\`[SCENE] \${p.title}\`);
         });
       }
     } catch(e) {}
@@ -62,8 +147,8 @@
       try {
         Object.keys(obj).forEach(k => {
           if (k.startsWith('$')) return;
-          let fullKey = prefix ? `${prefix}.${k}` : k;
-          allEntries.add(`[VAR] ${fullKey}`);
+          let fullKey = prefix ? \`\${prefix}.\${k}\` : k;
+          allEntries.add(\`[VAR] \${fullKey}\`);
           
           let sub = obj[k];
           if (sub && typeof sub === 'object' && !Array.isArray(sub)) {
@@ -75,7 +160,7 @@
 
     Object.keys(liveVars).forEach(k => {
       if (k.startsWith('$')) return;
-      allEntries.add(`[VAR] ${k}`);
+      allEntries.add(\`[VAR] \${k}\`);
       collectKeysRecursive(liveVars[k], k, new Set());
     });
     
@@ -89,39 +174,39 @@
 
   modal = doc.createElement('div');
   modal.id = 'sugar-master-modal';
-  modal.style.cssText = `
+  modal.style.cssText = \`
     display: block; position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
     background: #111; color: #fff; padding: 16px; border-radius: 8px;
     box-shadow: 0 5px 30px rgba(0,0,0,0.9); z-index: 999999; font-family: sans-serif;
     width: 480px; max-height: 85vh; overflow-y: auto; border: 2px solid #00E676; box-sizing: border-box;
-  `;
-  modal.innerHTML = `
-    &lt;h3 style="margin: 0 0 6px 0; font-size: 16px; color: #00E676;"&gt;⚡ God Mode (Corruption Fixed)&lt;/h3&gt;
-    &lt;p style="font-size: 11px; color: #aaa; margin: 0 0 8px 0;"&gt;Loaded ${masterList.length} items. Press ' \` ' to toggle.&lt;/p&gt;
+  \`;
+  modal.innerHTML = \`
+    <h3 style="margin: 0 0 6px 0; font-size: 16px; color: #00E676;">⚡ God Mode (Context: \${window === targetWindow ? 'Main' : 'Frame'})</h3>
+    <p style="font-size: 11px; color: #aaa; margin: 0 0 8px 0;">Loaded \${masterList.length} items. Press ' \` ' to toggle.</p>
     
-    &lt;div id="sugar-status-msg" style="display:none; background: #388E3C; color: white; padding: 6px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; text-align: center; font-weight: bold;"&gt;&lt;/div&gt;
+    <div id="sugar-status-msg" style="display:none; background: #388E3C; color: white; padding: 6px; border-radius: 4px; font-size: 12px; margin-bottom: 8px; text-align: center; font-weight: bold;"></div>
     
-    &lt;input type="text" id="sugar-search-box" placeholder="Search [VAR] stats or [SCENE]..." style="width: 100%; padding: 8px; background: #222; color: #00E676; border: 1px solid #555; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; font-size: 13px; font-weight: bold;" /&gt;
-    &lt;select id="sugar-results-select" size="10" style="width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #555; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; font-family: monospace; font-size: 12px;"&gt;&lt;/select&gt;
+    <input type="text" id="sugar-search-box" placeholder="Search [VAR] stats or [SCENE]..." style="width: 100%; padding: 8px; background: #222; color: #00E676; border: 1px solid #555; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; font-size: 13px; font-weight: bold;" />
+    <select id="sugar-results-select" size="10" style="width: 100%; background: #1a1a1a; color: #fff; border: 1px solid #555; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; font-family: monospace; font-size: 12px;"></select>
     
-    &lt;div style="display: flex; gap: 6px; margin-bottom: 8px; align-items: center;"&gt;
-      &lt;label style="font-size: 12px; color: #ccc; white-space: nowrap;"&gt;Set Var To:&lt;/label&gt;
-      &lt;input type="text" id="sugar-custom-val" value="100" style="flex: 1; padding: 6px; background: #222; color: #00E676; border: 1px solid #555; border-radius: 4px; font-weight: bold; font-size: 14px;" /&gt;
-    &lt;/div&gt;
+    <div style="display: flex; gap: 6px; margin-bottom: 8px; align-items: center;">
+      <label style="font-size: 12px; color: #ccc; white-space: nowrap;">Set Var To:</label>
+      <input type="text" id="sugar-custom-val" value="100" style="flex: 1; padding: 6px; background: #222; color: #00E676; border: 1px solid #555; border-radius: 4px; font-weight: bold; font-size: 14px;" />
+    </div>
 
-    &lt;div style="display: flex; gap: 6px; margin-bottom: 6px;"&gt;
-      &lt;button id="sugar-action-btn" style="flex: 1; background: #00C853; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;"&gt;Inject Var / Jump Scene&lt;/button&gt;
-    &lt;/div&gt;
+    <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+      <button id="sugar-action-btn" style="flex: 1; background: #00C853; color: white; border: none; padding: 9px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 12px;">Inject Var / Jump Scene</button>
+    </div>
     
-    &lt;div style="margin-bottom: 6px;"&gt;
-      &lt;button id="sugar-maxall-btn" style="width: 100%; background: linear-gradient(135deg, #FFD700, #FF8F00); color: #111; border: none; padding: 11px; border-radius: 4px; cursor: pointer; font-weight: 900; font-size: 14px; text-transform: uppercase; box-shadow: 0 3px 10px rgba(255,215,0,0.4);"&gt;⚡ MAX ALL (MAXES CORRUPTION TOO)&lt;/button&gt;
-    &lt;/div&gt;
+    <div style="margin-bottom: 6px;">
+      <button id="sugar-maxall-btn" style="width: 100%; background: linear-gradient(135deg, #FFD700, #FF8F00); color: #111; border: none; padding: 11px; border-radius: 4px; cursor: pointer; font-weight: 900; font-size: 14px; text-transform: uppercase; box-shadow: 0 3px 10px rgba(255,215,0,0.4);">⚡ MAX ALL (MAXES CORRUPTION TOO)</button>
+    </div>
 
-    &lt;div style="display: flex; gap: 6px;"&gt;
-      &lt;button id="sugar-refresh-dropdown-btn" style="flex: 1; background: #444; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;"&gt;Refresh List&lt;/button&gt;
-      &lt;button id="sugar-close-btn" style="flex: 1; background: #d32f2f; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;"&gt;Close UI (Press \` )&lt;/button&gt;
-    &lt;/div&gt;
-  `;
+    <div style="display: flex; gap: 6px;">
+      <button id="sugar-refresh-dropdown-btn" style="flex: 1; background: #444; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;">Refresh List</button>
+      <button id="sugar-close-btn" style="flex: 1; background: #d32f2f; color: white; border: none; padding: 6px; border-radius: 4px; cursor: pointer; font-size: 11px;">Close UI (Press \` )</button>
+    </div>
+  \`;
   doc.body.appendChild(modal);
 
   const searchBox = doc.getElementById('sugar-search-box');
@@ -154,7 +239,7 @@
   doc.getElementById('sugar-refresh-dropdown-btn').addEventListener('click', () => {
     masterList = getMasterList();
     renderDropdown(searchBox.value);
-    showStatus(`Refreshed! Found ${masterList.length} items.`);
+    showStatus(\`Refreshed! Found \${masterList.length} items.\`);
   });
 
   doc.getElementById('sugar-action-btn').addEventListener('click', () => {
@@ -174,57 +259,35 @@
         let liveVars = getLiveVars(); 
         let parts = varPath.split('.');
         let targetObj = liveVars;
-        for (let i = 0; i &lt; parts.length - 1; i++) {
+        for (let i = 0; i < parts.length - 1; i++) {
           if (!targetObj[parts[i]]) targetObj[parts[i]] = {}; 
           targetObj = targetObj[parts[i]];
         }
         targetObj[parts[parts.length - 1]] = assignedVal;
         updateScreenSafely();
-        showStatus(`✅ Forced ${varPath} to ${assignedVal}`);
+        showStatus(\`✅ Forced \${varPath} to \${assignedVal}\`);
       } catch(err) {
-        showStatus(`Error setting variable: ` + err.message, true);
+        showStatus(\`Error setting variable: \` + err.message, true);
       }
     } else if (val.startsWith('[SCENE] ')) {
       try {
         SC.Engine.play(val.replace('[SCENE] ', ''));
         modal.style.display = 'none';
       } catch(err) {
-        showStatus(`Error jumping to scene: ` + err.message, true);
+        showStatus(\`Error jumping to scene: \` + err.message, true);
       }
     }
   });
 
-  const safeZeroKeywords = [
-    'trauma', 'pain', 'stress', 'fatigue', 'tired', 'dirt', 'filth', 'hunger', 'thirst', 
-    'suspicion', 'threat', 'danger', 'fear'
-  ];
-
-  const safeSinKeywords = [
-    'corruption', 'arousal', 'lust', 'horny', 'promiscuity', 'exhibitionism', 'deviancy'
-  ];
-
-  const safeCapKeywords = [
-    'energy', 'stamina', 'hp', 'health', 'mana', 
-    'love', 'affection', 'submission', 'obedience', 
-    'level', 'skill', 'stat'
-  ];
-
-  const safeMaxKeywords = [
-    'money', 'cash', 'gold', 'coin', 'credit', 'wealth', 
-    'exp', 'experience', 'points', 'score'
-  ];
-  
-  const safeBoolKeywords = [
-    'unlocked', 'owned', 'complete', 'seen', 'known', 'active', 'dlc', 'event', 'buy', 'available'
-  ];
+  const safeZeroKeywords = ['trauma', 'pain', 'stress', 'fatigue', 'tired', 'dirt', 'filth', 'hunger', 'thirst', 'suspicion', 'threat', 'danger', 'fear'];
+  const safeSinKeywords = ['corruption', 'arousal', 'lust', 'horny', 'promiscuity', 'exhibitionism', 'deviancy'];
+  const safeCapKeywords = ['energy', 'stamina', 'hp', 'health', 'mana', 'love', 'affection', 'submission', 'obedience', 'level', 'skill', 'stat'];
+  const safeMaxKeywords = ['money', 'cash', 'gold', 'coin', 'credit', 'wealth', 'exp', 'experience', 'points', 'score'];
+  const safeBoolKeywords = ['unlocked', 'owned', 'complete', 'seen', 'known', 'active', 'dlc', 'event', 'buy', 'available'];
 
   doc.getElementById('sugar-maxall-btn').addEventListener('click', () => {
     let liveVars = getLiveVars();
-    let zeroCount = 0;
-    let capCount = 0;
-    let maxCount = 0;
-    let sinCount = 0;
-    let boolCount = 0;
+    let zeroCount = 0, capCount = 0, maxCount = 0, sinCount = 0, boolCount = 0;
 
     function deepMaxSmart(obj, visited = new Set()) {
       if (!obj || typeof obj !== 'object') return;
@@ -233,43 +296,25 @@
 
       Object.keys(obj).forEach(key => {
         if (key.startsWith('$') || typeof obj[key] === 'function') return;
-        
         let val = obj[key];
         let lKey = key.toLowerCase();
 
         if (val && typeof val === 'object') {
           deepMaxSmart(val, visited);
         } else if (typeof val === 'number') {
-          
-          if (safeZeroKeywords.some(word => lKey.includes(word))) {
-            obj[key] = 0;
-            zeroCount++;
-          } 
-          else if (safeSinKeywords.some(word => lKey.includes(word))) {
-            obj[key] = 999999; 
-            sinCount++;
-          }
-          else if (safeCapKeywords.some(word => lKey.includes(word))) {
-            obj[key] = 99999;
-            capCount++;
-          } 
-          else if (safeMaxKeywords.some(word => lKey.includes(word))) {
-            obj[key] = 9999999;
-            maxCount++;
-          }
-
+          if (safeZeroKeywords.some(word => lKey.includes(word))) { obj[key] = 0; zeroCount++; } 
+          else if (safeSinKeywords.some(word => lKey.includes(word))) { obj[key] = 999999; sinCount++; }
+          else if (safeCapKeywords.some(word => lKey.includes(word))) { obj[key] = 99999; capCount++; } 
+          else if (safeMaxKeywords.some(word => lKey.includes(word))) { obj[key] = 9999999; maxCount++; }
         } else if (typeof val === 'boolean') {
-          if (safeBoolKeywords.some(word => lKey.includes(word))) {
-            obj[key] = true;
-            boolCount++;
-          }
+          if (safeBoolKeywords.some(word => lKey.includes(word))) { obj[key] = true; boolCount++; }
         }
       });
     }
 
     deepMaxSmart(liveVars);
     updateScreenSafely();
-    showStatus(`⚡ DONE! Maxed Corruption/Lust (${sinCount}), Economy (${maxCount}), and Zeroed Trauma (${zeroCount}).`);
+    showStatus(\`⚡ DONE! Maxed Corruption/Lust (\${sinCount}), Economy (\${maxCount}), and Zeroed Trauma (\${zeroCount}).\`);
   });
 
   doc.getElementById('sugar-close-btn').addEventListener('click', () => {
@@ -295,13 +340,62 @@
     window._sugarGlobalHandlerBound = true;
     window.addEventListener('keydown', handleToggle);
   }
-  if (targetWindow !== window && !targetWindow._sugarFrameHandlerBound) {
-    targetWindow._sugarFrameHandlerBound = true;
-    targetWindow.addEventListener('keydown', handleToggle);
-  }
-
-  console.log("🚀 SMART WHITELIST Trainer Loaded! Press ` to toggle.");
+  
+  console.log("🚀 SMART WHITELIST Trainer Loaded in context! Press ` to toggle.");
 })();
-&lt;/script&gt;</code></pre>
+`;
+
+document.getElementById('load-btn').addEventListener('click', () => {
+    const url = document.getElementById('game-url').value.trim();
+    const contextChoice = document.getElementById('context-selector').value;
+
+    if (!url) {
+        alert("Please enter a valid link!");
+        return;
+    }
+
+    const iframe = document.getElementById('game-frame');
+    iframe.src = url;
+
+    iframe.onload = () => {
+        try {
+            const frameWindow = iframe.contentWindow;
+            const frameDoc = frameWindow.document;
+
+            function injectInto(win, docObj) {
+                const scriptEl = docObj.createElement('script');
+                scriptEl.textContent = trainerCode;
+                docObj.head.appendChild(scriptEl);
+            }
+
+            if (contextChoice === 'top') {
+                injectInto(frameWindow, frameDoc);
+            } else if (contextChoice === 'frames') {
+                // Inject into iframe itself plus any nested child frames/embeds
+                injectInto(frameWindow, frameDoc);
+                const subFrames = frameDoc.querySelectorAll('iframe, embed');
+                subFrames.forEach(sf => {
+                    try {
+                        if (sf.contentWindow && sf.contentWindow.document) {
+                            injectInto(sf.contentWindow, sf.contentWindow.document);
+                        }
+                    } catch(e) {}
+                });
+            } else {
+                // Auto-detect: tries to locate SugarCube in current window or scans inner frames recursively
+                const scriptEl = frameDoc.createElement('script');
+                scriptEl.textContent = trainerCode;
+                frameDoc.head.appendChild(scriptEl);
+            }
+
+            console.log("Trainer injected using strategy:", contextChoice);
+        } catch (err) {
+            console.error("Injection failed due to cross-origin policies:", err);
+            alert("❌ Cross-Origin Error: The website blocks script injections from external sources.");
+        }
+    };
+});
+</script>
+
 </body>
 </html>

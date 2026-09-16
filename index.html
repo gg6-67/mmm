@@ -3,5 +3,1322 @@
 <pre><code>&lt;script&gt;
 (function universalSugarCubeTrainerSmartWhitelist() { var targetWindow = window; var doc = document; if (!window.SugarCube) { var frames = document.querySelectorAll('iframe, embed'); for (var fi = 0; fi < frames.length; fi++) { try { if (frames[fi].contentWindow && frames[fi].contentWindow.SugarCube) { targetWindow = frames[fi].contentWindow; doc = targetWindow.document; break; } } catch (e) {} } } var SC = targetWindow.SugarCube || window.SugarCube; if (!SC || !SC.State) { alert( 'SugarCube not found! Make sure you are on the game tab.' ); return; } function getLiveVars() { return SC.State.variables || (SC.State.active && SC.State.active.variables) || {}; } function updateScreenSafely() { try { if ( typeof SC.UI !== 'undefined' && typeof SC.UI.update === 'function' ) { SC.UI.update(); } if ( SC.Engine && typeof SC.Engine.show === 'function' ) { SC.Engine.show(); } else if ( SC.Engine && SC.State.passage ) { SC.Engine.play(SC.State.passage); } } catch (err) {} } function getMasterList() { var allEntries = new Set(); try { doc .querySelectorAll('tw-passagedata') .forEach(function (el) { var name = el.getAttribute('name'); if (name) { allEntries.add('[SCENE] ' + name); } }); if ( SC.Story && typeof SC.Story.lookupWith === 'function' ) { SC.Story .lookupWith(function () { return true; }) .forEach(function (p) { if (p.title) { allEntries.add('[SCENE] ' + p.title); } }); } } catch (e) {} var liveVars = getLiveVars(); function collectKeysRecursive( obj, prefix, visited ) { prefix = prefix || ''; visited = visited || new Set(); if (!obj || typeof obj !== 'object') { return; } if (visited.has(obj)) { return; } visited.add(obj); try { Object.keys(obj).forEach( function (k) { if (k.charAt(0) === '$') { return; } var fullKey = prefix ? prefix + '.' + k : k; allEntries.add( '[VAR] ' + fullKey ); var sub = obj[k]; if ( sub && typeof sub === 'object' && !Array.isArray(sub) ) { collectKeysRecursive( sub, fullKey, visited ); } } ); } catch (e) {} } Object.keys(liveVars).forEach( function (k) { if (k.charAt(0) === '$') { return; } allEntries.add( '[VAR] ' + k ); collectKeysRecursive( liveVars[k], k, new Set() ); } ); return Array.from(allEntries).sort(); } var masterList = getMasterList(); var oldModal = doc.getElementById( 'sugar-master-modal' ); if (oldModal) { oldModal.remove(); } var modal = doc.createElement('div'); modal.id = 'sugar-master-modal'; modal.style.cssText = 'display:block;' + 'position:fixed;' + 'top:20px;' + 'left:50%;' + 'transform:translateX(-50%);' + 'background:#111;' + 'color:#fff;' + 'padding:16px;' + 'border-radius:8px;' + 'box-shadow:0 5px 30px rgba(0,0,0,0.9);' + 'z-index:999999;' + 'font-family:sans-serif;' + 'width:480px;' + 'max-height:85vh;' + 'overflow-y:auto;' + 'border:2px solid #00E676;' + 'box-sizing:border-box;'; /* * IMPORTANT: * No template literals/backticks are used anywhere * in this script. */ modal.innerHTML = '<h3 style="' + 'margin:0 0 6px 0;' + 'font-size:16px;' + 'color:#00E676;' + '">' + 'God Mode - Multi Variable' + '</h3>' + '<p style="' + 'font-size:11px;' + 'color:#aaa;' + 'margin:0 0 8px 0;' + '">' + 'Loaded ' + masterList.length + ' items. Select multiple variables with Ctrl/Shift. ' + 'Press the backtick key to toggle.' + '</p>' + '<div id="sugar-status-msg" style="' + 'display:none;' + 'background:#388E3C;' + 'color:white;' + 'padding:6px;' + 'border-radius:4px;' + 'font-size:12px;' + 'margin-bottom:8px;' + 'text-align:center;' + 'font-weight:bold;' + '"></div>' + '<input ' + 'type="text" ' + 'id="sugar-search-box" ' + 'placeholder="Search [VAR] stats or [SCENE]..." ' + 'style="' + 'width:100%;' + 'padding:8px;' + 'background:#222;' + 'color:#00E676;' + 'border:1px solid #555;' + 'border-radius:4px;' + 'margin-bottom:8px;' + 'box-sizing:border-box;' + 'font-size:13px;' + 'font-weight:bold;' + '" />' + '<select ' + 'id="sugar-results-select" ' + 'multiple ' + 'size="12" ' + 'style="' + 'width:100%;' + 'background:#1a1a1a;' + 'color:#fff;' + 'border:1px solid #555;' + 'border-radius:4px;' + 'margin-bottom:8px;' + 'box-sizing:border-box;' + 'font-family:monospace;' + 'font-size:12px;' + '"' + '></select>' + '<div style="' + 'font-size:10px;' + 'color:#888;' + 'margin:-3px 0 8px 0;' + '">' + 'Ctrl+Click = individual selections; ' + 'Shift+Click = range' + '</div>' + '<div style="' + 'display:flex;' + 'gap:6px;' + 'margin-bottom:8px;' + 'align-items:center;' + '">' + '<label style="' + 'font-size:12px;' + 'color:#ccc;' + 'white-space:nowrap;' + '">' + 'Set Selected To:' + '</label>' + '<input ' + 'type="text" ' + 'id="sugar-custom-val" ' + 'value="100" ' + 'style="' + 'flex:1;' + 'padding:6px;' + 'background:#222;' + 'color:#00E676;' + 'border:1px solid #555;' + 'border-radius:4px;' + 'font-weight:bold;' + 'font-size:14px;' + '" />' + '</div>' + '<div style="' + 'display:flex;' + 'gap:6px;' + 'margin-bottom:8px;' + '">' + '<button ' + 'id="sugar-action-btn" ' + 'style="' + 'flex:1;' + 'background:#00C853;' + 'color:white;' + 'border:none;' + 'padding:9px;' + 'border-radius:4px;' + 'cursor:pointer;' + 'font-weight:bold;' + 'font-size:12px;' + '"' + '>' + 'Inject Selected Variables' + '</button>' + '</div>' + '<div style="margin-bottom:6px;">' + '<button ' + 'id="sugar-maxall-btn" ' + 'style="' + 'width:100%;' + 'background:linear-gradient(135deg,#FFD700,#FF8F00);' + 'color:#111;' + 'border:none;' + 'padding:11px;' + 'border-radius:4px;' + 'cursor:pointer;' + 'font-weight:900;' + 'font-size:14px;' + 'text-transform:uppercase;' + 'box-shadow:0 3px 10px rgba(255,215,0,0.4);' + '"' + '>' + 'MAX ALL' + '</button>' + '</div>' + '<div style="display:flex;gap:6px;">' + '<button ' + 'id="sugar-refresh-dropdown-btn" ' + 'style="' + 'flex:1;' + 'background:#444;' + 'color:white;' + 'border:none;' + 'padding:6px;' + 'border-radius:4px;' + 'cursor:pointer;' + 'font-size:11px;' + '"' + '>' + 'Refresh List' + '</button>' + '<button ' + 'id="sugar-close-btn" ' + 'style="' + 'flex:1;' + 'background:#d32f2f;' + 'color:white;' + 'border:none;' + 'padding:6px;' + 'border-radius:4px;' + 'cursor:pointer;' + 'font-size:11px;' + '"' + '>' + 'Close UI' + '</button>' + '</div>'; doc.body.appendChild(modal); var searchBox = doc.getElementById( 'sugar-search-box' ); var resultsSelect = doc.getElementById( 'sugar-results-select' ); var customValInput = doc.getElementById( 'sugar-custom-val' ); var statusMsg = doc.getElementById( 'sugar-status-msg' ); function showStatus( text, isError ) { statusMsg.style.display = 'block'; statusMsg.style.background = isError ? '#D32F2F' : '#00C853'; statusMsg.textContent = text; setTimeout( function () { statusMsg.style.display = 'none'; }, 3000 ); } function renderDropdown(filter) { filter = filter || ''; resultsSelect.innerHTML = ''; var lowerFilter = filter.toLowerCase(); var filtered = masterList .filter( function (item) { return ( item .toLowerCase() .indexOf(lowerFilter) !== -1 ); } ) .slice(0, 500); filtered.forEach( function (item) { var opt = doc.createElement( 'option' ); opt.value = item; opt.textContent = item; if ( item.indexOf('[SCENE]') === 0 ) { opt.style.color = '#FFCA28'; } resultsSelect.appendChild( opt ); } ); } renderDropdown(''); searchBox.addEventListener( 'input', function (e) { renderDropdown( e.target.value ); } ); doc .getElementById( 'sugar-refresh-dropdown-btn' ) .addEventListener( 'click', function () { masterList = getMasterList(); renderDropdown( searchBox.value ); showStatus( 'Refreshed! Found ' + masterList.length + ' items.' ); } ); /* * MULTI-VARIABLE INJECTION */ doc .getElementById( 'sugar-action-btn' ) .addEventListener( 'click', function () { var selected = Array.from( resultsSelect .selectedOptions ); if (!selected.length) { showStatus( 'Please select at least one item first!', true ); return; } var scenes = selected.filter( function (opt) { return ( opt.value.indexOf( '[SCENE] ' ) === 0 ); } ); var vars = selected.filter( function (opt) { return ( opt.value.indexOf( '[VAR] ' ) === 0 ); } ); /* * Scene handling. */ if (scenes.length > 0) { if (selected.length !== 1) { showStatus( 'Scenes must be selected by themselves.', true ); return; } try { SC.Engine.play( scenes[0] .value .replace( '[SCENE] ', '' ) ); modal.style.display = 'none'; } catch (err) { showStatus( 'Error jumping to scene: ' + err.message, true ); } return; } if (!vars.length) { showStatus( 'Please select variables.', true ); return; } /* * Parse entered value. */ var rawInput = customValInput.value.trim(); var assignedVal = rawInput; if ( rawInput !== '' && !isNaN(rawInput) ) { assignedVal = Number(rawInput); } else if ( rawInput.toLowerCase() === 'true' ) { assignedVal = true; } else if ( rawInput.toLowerCase() === 'false' ) { assignedVal = false; } var liveVars = getLiveVars(); var successCount = 0; var failed = []; /* * Apply identical value to * every selected variable. */ vars.forEach( function (option) { var varPath = option.value.replace( '[VAR] ', '' ); try { var parts = varPath.split('.'); var targetObj = liveVars; for ( var i = 0; i < parts.length - 1; i++ ) { if ( !targetObj[ parts[i] ] || typeof targetObj[ parts[i] ] !== 'object' ) { targetObj[ parts[i] ] = {}; } targetObj = targetObj[ parts[i] ]; } targetObj[ parts[ parts.length - 1 ] ] = assignedVal; successCount++; } catch (err) { failed.push( varPath ); } } ); updateScreenSafely(); if (failed.length) { showStatus( 'Set ' + successCount + ' variables. Failed: ' + failed.length ); } else { showStatus( 'Set ' + successCount + ' variables to ' + String(assignedVal) ); } } ); /* * SMART MAX-ALL */ var safeZeroKeywords = [ 'trauma', 'pain', 'stress', 'fatigue', 'tired', 'dirt', 'filth', 'hunger', 'thirst', 'suspicion', 'threat', 'danger', 'fear' ]; var safeSinKeywords = [ 'corruption', 'arousal', 'lust', 'horny', 'promiscuity', 'exhibitionism', 'deviancy' ]; var safeCapKeywords = [ 'energy', 'stamina', 'hp', 'health', 'mana', 'love', 'affection', 'submission', 'obedience', 'level', 'skill', 'stat' ]; var safeMaxKeywords = [ 'money', 'cash', 'gold', 'coin', 'credit', 'wealth', 'exp', 'experience', 'points', 'score' ]; var safeBoolKeywords = [ 'unlocked', 'owned', 'complete', 'seen', 'known', 'active', 'dlc', 'event', 'buy', 'available' ]; doc .getElementById( 'sugar-maxall-btn' ) .addEventListener( 'click', function () { var liveVars = getLiveVars(); var zeroCount = 0; var capCount = 0; var maxCount = 0; var sinCount = 0; var boolCount = 0; function deepMaxSmart( obj, visited ) { visited = visited || new Set(); if ( !obj || typeof obj !== 'object' ) { return; } if ( visited.has(obj) ) { return; } visited.add(obj); Object.keys(obj).forEach( function (key) { if ( key.charAt(0) === '$' || typeof obj[key] === 'function' ) { return; } var val = obj[key]; var lKey = key.toLowerCase(); if ( val && typeof val === 'object' ) { deepMaxSmart( val, visited ); } else if ( typeof val === 'number' ) { if ( safeZeroKeywords.some( function (word) { return ( lKey.indexOf( word ) !== -1 ); } ) ) { obj[key] = 0; zeroCount++; } else if ( safeSinKeywords.some( function (word) { return ( lKey.indexOf( word ) !== -1 ); } ) ) { obj[key] = 999999; sinCount++; } else if ( safeCapKeywords.some( function (word) { return ( lKey.indexOf( word ) !== -1 ); } ) ) { obj[key] = 99999; capCount++; } else if ( safeMaxKeywords.some( function (word) { return ( lKey.indexOf( word ) !== -1 ); } ) ) { obj[key] = 9999999; maxCount++; } } else if ( typeof val === 'boolean' ) { if ( safeBoolKeywords.some( function (word) { return ( lKey.indexOf( word ) !== -1 ); } ) ) { obj[key] = true; boolCount++; } } } ); } deepMaxSmart(liveVars); updateScreenSafely(); showStatus( 'DONE! Corruption/Lust: ' + sinCount + ', Economy: ' + maxCount + ', Caps: ' + capCount + ', Zeroed: ' + zeroCount + ', Booleans: ' + boolCount ); } ); /* * CLOSE BUTTON */ doc .getElementById( 'sugar-close-btn' ) .addEventListener( 'click', function () { modal.style.display = 'none'; } ); /* * BACKTICK TOGGLE */ function handleToggle(event) { var isBacktick = event.key === '`' || event.code === 'Backquote' || event.keyCode === 192; if (!isBacktick) { return; } event.preventDefault(); var activeModal = doc.getElementById( 'sugar-master-modal' ); if (!activeModal) { return; } var isHidden = activeModal.style.display === 'none'; activeModal.style.display = isHidden ? 'block' : 'none'; if (isHidden) { masterList = getMasterList(); renderDropdown( searchBox.value ); } } if ( !window._sugarGlobalHandlerBound ) { window._sugarGlobalHandlerBound = true; window.addEventListener( 'keydown', handleToggle ); } if ( targetWindow !== window && !targetWindow._sugarFrameHandlerBound ) { targetWindow._sugarFrameHandlerBound = true; targetWindow.addEventListener( 'keydown', handleToggle ); } console.log( 'SMART WHITELIST Multi-Variable Trainer Loaded! Press the backtick key to toggle.' ); })();
 &lt;/script&gt;</code></pre>
+<pre><code>&lt;script&gt;
+(() => {
+  "use strict";
+
+  /*
+   * ============================================================
+   * SOCIETY SAVE MANAGER
+   * ============================================================
+   *
+   * Features:
+   * - Supabase cloud backups
+   * - Multiple named save slots
+   * - Restore without browser reload
+   * - Uses Society/SugarCube's native State.restore()
+   * - Delete backups
+   * - Refresh backup list
+   * - Console API
+   * - Hotkey: ]
+   *
+   * IMPORTANT:
+   * The restore operation temporarily places the selected
+   * backup into society.state, lets SugarCube decode it using
+   * its OWN restore mechanism, then redraws the game.
+   *
+   * There is NO location.reload().
+   * ============================================================
+   */
+
+  const CONFIG = {
+    SUPABASE_URL:
+      "https://tdgkqqckuxmrwkbumhyf.supabase.co",
+
+    SUPABASE_KEY:
+      "sb_publishable_ix7z67VvzBw5jkGg8aNIuw_f7L2AIqB",
+
+    TABLE:
+      "game_saves",
+
+    GAME_NAME:
+      "Society",
+
+    STORAGE_KEY:
+      "society.state",
+
+    HOTKEY:
+      "]"
+  };
+
+
+  /* ============================================================
+   * SUPABASE
+   * ============================================================ */
+
+  function supabaseHeaders(extra) {
+    return Object.assign(
+      {
+        apikey: CONFIG.SUPABASE_KEY,
+        Authorization:
+          "Bearer " + CONFIG.SUPABASE_KEY,
+        "Content-Type":
+          "application/json"
+      },
+      extra || {}
+    );
+  }
+
+
+  async function supabaseRequest(path, options) {
+    const response = await fetch(
+      CONFIG.SUPABASE_URL +
+        "/rest/v1/" +
+        CONFIG.TABLE +
+        path,
+      Object.assign(
+        {
+          headers:
+            supabaseHeaders()
+        },
+        options || {}
+      )
+    );
+
+    const text =
+      await response.text();
+
+    if (!response.ok) {
+      throw new Error(
+        "Supabase error " +
+          response.status +
+          ": " +
+          (text || response.statusText)
+      );
+    }
+
+    if (!text) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (_) {
+      return text;
+    }
+  }
+
+
+  /* ============================================================
+   * GAME / STORAGE
+   * ============================================================ */
+
+  function getSugarCube() {
+    const SC =
+      window.SugarCube;
+
+    if (
+      !SC ||
+      !SC.State
+    ) {
+      throw new Error(
+        "SugarCube was not found. Run this inside the Society game page."
+      );
+    }
+
+    return SC;
+  }
+
+
+  function getCurrentSaveData() {
+    const value =
+      sessionStorage.getItem(
+        CONFIG.STORAGE_KEY
+      );
+
+    if (value === null) {
+      throw new Error(
+        'No "' +
+          CONFIG.STORAGE_KEY +
+          '" save exists in sessionStorage.'
+      );
+    }
+
+    return value;
+  }
+
+
+  function getCurrentGameUrl() {
+    return location.href;
+  }
+
+
+  /* ============================================================
+   * DETECT STORAGE
+   * ============================================================ */
+
+  function detect() {
+    const found = [];
+
+    for (
+      let i = 0;
+      i < sessionStorage.length;
+      i++
+    ) {
+      const key =
+        sessionStorage.key(i);
+
+      if (!key) {
+        continue;
+      }
+
+      const value =
+        sessionStorage.getItem(key);
+
+      found.push({
+        storage_type:
+          "sessionStorage",
+
+        storage_key:
+          key,
+
+        length:
+          value
+            ? value.length
+            : 0
+      });
+    }
+
+
+    for (
+      let i = 0;
+      i < localStorage.length;
+      i++
+    ) {
+      const key =
+        localStorage.key(i);
+
+      if (!key) {
+        continue;
+      }
+
+      const value =
+        localStorage.getItem(key);
+
+      found.push({
+        storage_type:
+          "localStorage",
+
+        storage_key:
+          key,
+
+        length:
+          value
+            ? value.length
+            : 0
+      });
+    }
+
+
+    console.log(
+      "=== STORAGE ==="
+    );
+
+    console.table(found);
+
+    return found;
+  }
+
+
+  /* ============================================================
+   * SAVE BACKUP
+   * ============================================================ */
+
+  async function save(slotName) {
+    const saveData =
+      getCurrentSaveData();
+
+    const name =
+      slotName ||
+      prompt(
+        "Backup name:",
+        "Save " +
+          new Date().toLocaleString()
+      );
+
+    if (!name) {
+      return null;
+    }
+
+
+    const payload = {
+      game:
+        CONFIG.GAME_NAME,
+
+      game_url:
+        getCurrentGameUrl(),
+
+      storage_type:
+        "sessionStorage",
+
+      storage_key:
+        CONFIG.STORAGE_KEY,
+
+      slot_name:
+        name,
+
+      save_data:
+        saveData
+    };
+
+
+    const result =
+      await supabaseRequest(
+        "?select=*",
+        {
+          method:
+            "POST",
+
+          headers:
+            supabaseHeaders({
+              Prefer:
+                "return=representation"
+            }),
+
+          body:
+            JSON.stringify(payload)
+        }
+      );
+
+
+    console.log(
+      "Backup saved:",
+      result
+    );
+
+
+    alert(
+      'Backup "' +
+        name +
+        '" saved successfully.'
+    );
+
+
+    await refreshList();
+
+    return result;
+  }
+
+
+  /* ============================================================
+   * GET CURRENT GAME BACKUPS
+   * ============================================================ */
+
+  async function backups() {
+    const path =
+      "?select=*" +
+      "&game=eq." +
+      encodeURIComponent(
+        CONFIG.GAME_NAME
+      ) +
+      "&order=created_at.desc";
+
+    return await supabaseRequest(
+      path
+    );
+  }
+
+
+  /* ============================================================
+   * GET ALL GAME BACKUPS
+   * ============================================================ */
+
+  async function allBackups() {
+    return await supabaseRequest(
+      "?select=*&order=created_at.desc"
+    );
+  }
+
+
+  /* ============================================================
+   * DELETE BACKUP
+   * ============================================================ */
+
+  async function deleteBackup(id) {
+    if (!id) {
+      throw new Error(
+        "Missing backup ID."
+      );
+    }
+
+
+    await supabaseRequest(
+      "?id=eq." +
+        encodeURIComponent(id),
+      {
+        method:
+          "DELETE"
+      }
+    );
+
+
+    await refreshList();
+  }
+
+
+  /* ============================================================
+   * LIVE SUGARCUBE RESTORE
+   * ============================================================
+   *
+   * THIS IS THE IMPORTANT PART.
+   *
+   * We previously tried to decode society.state manually.
+   * That was wrong for this build.
+   *
+   * Society's own State.restore() already performs the
+   * required decoding internally.
+   *
+   * We therefore:
+   *
+   * 1. Save the current society.state.
+   * 2. Put the backup into society.state.
+   * 3. Call SugarCube State.restore().
+   * 4. Redraw the game.
+   * 5. NEVER reload the browser.
+   *
+   * ============================================================
+   */
+
+  function restoreLive(backup) {
+    const SC =
+      getSugarCube();
+
+
+    if (
+      !backup ||
+      !backup.save_data
+    ) {
+      throw new Error(
+        "Backup contains no save data."
+      );
+    }
+
+
+    if (
+      backup.storage_key &&
+      backup.storage_key !==
+        CONFIG.STORAGE_KEY
+    ) {
+      throw new Error(
+        "This backup uses storage key " +
+          backup.storage_key +
+          ", but Society currently uses " +
+          CONFIG.STORAGE_KEY +
+          "."
+      );
+    }
+
+
+    const oldValue =
+      sessionStorage.getItem(
+        CONFIG.STORAGE_KEY
+      );
+
+
+    console.log(
+      "================================"
+    );
+
+    console.log(
+      "SOCIETY LIVE RESTORE"
+    );
+
+    console.log(
+      "================================"
+    );
+
+    console.log(
+      "Backup:",
+      backup.slot_name
+    );
+
+    console.log(
+      "Backup ID:",
+      backup.id
+    );
+
+    console.log(
+      "Encoded length:",
+      backup.save_data.length
+    );
+
+
+    /*
+     * Put the backup into the exact storage
+     * location that Society's native State.restore()
+     * expects.
+     */
+
+    sessionStorage.setItem(
+      CONFIG.STORAGE_KEY,
+      backup.save_data
+    );
+
+
+    try {
+
+      /*
+       * Let Society/SugarCube do ALL decoding and
+       * state reconstruction itself.
+       */
+
+      const restored =
+        SC.State.restore();
+
+
+      console.log(
+        "State.restore() result:",
+        restored
+      );
+
+
+      if (!restored) {
+        throw new Error(
+          "SugarCube rejected the backup."
+        );
+      }
+
+
+      /*
+       * Verify that SugarCube now has a live state.
+       */
+
+      console.log(
+        "Restored passage:",
+        SC.State.passage
+      );
+
+      console.log(
+        "Restored index:",
+        SC.State.index
+      );
+
+      console.log(
+        "Restored history length:",
+        SC.State.length
+      );
+
+      console.log(
+        "Restored variables:",
+        SC.State.variables
+      );
+
+
+      /*
+       * Redraw WITHOUT reloading the browser.
+       */
+
+      if (
+        typeof SC.Engine.show ===
+        "function"
+      ) {
+
+        SC.Engine.show();
+
+      } else if (
+        typeof SC.State.show ===
+        "function"
+      ) {
+
+        SC.State.show();
+
+      } else if (
+        typeof SC.Engine.play ===
+        "function"
+      ) {
+
+        SC.Engine.play(
+          SC.State.passage
+        );
+
+      } else {
+
+        throw new Error(
+          "SugarCube restored the state, but no rendering method was available."
+        );
+      }
+
+
+      console.log(
+        "Society restored successfully WITHOUT reload."
+      );
+
+
+      setTimeout(() => {
+
+        alert(
+          'Restored "' +
+            (
+              backup.slot_name ||
+              "Unnamed Save"
+            ) +
+            '" successfully.\n\n' +
+            "The page was NOT reloaded."
+        );
+
+      }, 100);
+
+
+      return true;
+
+
+    } catch (error) {
+
+      /*
+       * IMPORTANT:
+       *
+       * If restoration fails, restore the original
+       * storage value so we don't leave sessionStorage
+       * pointing at a broken backup.
+       */
+
+      if (
+        oldValue === null
+      ) {
+
+        sessionStorage.removeItem(
+          CONFIG.STORAGE_KEY
+        );
+
+      } else {
+
+        sessionStorage.setItem(
+          CONFIG.STORAGE_KEY,
+          oldValue
+        );
+      }
+
+
+      throw error;
+    }
+  }
+
+
+  /* ============================================================
+   * RESTORE BACKUP
+   * ============================================================ */
+
+  async function restoreBackup(
+    backup
+  ) {
+
+    if (!backup) {
+      throw new Error(
+        "No backup selected."
+      );
+    }
+
+
+    const confirmed =
+      confirm(
+        'Restore "' +
+          (
+            backup.slot_name ||
+            "Unnamed Save"
+          ) +
+          '"?\n\n' +
+          "Your current live game state will be replaced.\n\n" +
+          "The page will NOT reload."
+      );
+
+
+    if (!confirmed) {
+      return false;
+    }
+
+
+    try {
+
+      restoreLive(
+        backup
+      );
+
+      return true;
+
+    } catch (error) {
+
+      console.error(
+        "================================"
+      );
+
+      console.error(
+        "RESTORE FAILED"
+      );
+
+      console.error(
+        error
+      );
+
+      console.error(
+        "================================"
+      );
+
+
+      alert(
+        "Restore failed:\n\n" +
+          (
+            error &&
+            error.message
+              ? error.message
+              : String(error)
+          )
+      );
+
+
+      return false;
+    }
+  }
+
+
+  /* ============================================================
+   * RESTORE BY SUPABASE ID
+   * ============================================================ */
+
+  async function restoreById(
+    id
+  ) {
+
+    if (!id) {
+      throw new Error(
+        "Missing backup ID."
+      );
+    }
+
+
+    const rows =
+      await supabaseRequest(
+        "?select=*" +
+          "&id=eq." +
+          encodeURIComponent(id)
+      );
+
+
+    if (
+      !rows ||
+      !rows.length
+    ) {
+      throw new Error(
+        "Backup " +
+          id +
+          " was not found."
+      );
+    }
+
+
+    return await restoreBackup(
+      rows[0]
+    );
+  }
+
+
+  /* ============================================================
+   * UI
+   * ============================================================ */
+
+  const oldPanel =
+    document.getElementById(
+      "society-save-manager"
+    );
+
+
+  if (oldPanel) {
+    oldPanel.remove();
+  }
+
+
+  const panel =
+    document.createElement(
+      "div"
+    );
+
+
+  panel.id =
+    "society-save-manager";
+
+
+  panel.style.cssText = [
+    "position:fixed",
+    "top:20px",
+    "right:20px",
+    "width:380px",
+    "max-height:80vh",
+    "overflow:auto",
+    "z-index:2147483647",
+    "background:#111",
+    "color:#eee",
+    "border:1px solid #555",
+    "border-radius:10px",
+    "padding:14px",
+    "font-family:Arial,sans-serif",
+    "font-size:13px",
+    "box-shadow:0 8px 30px rgba(0,0,0,.5)"
+  ].join(";");
+
+
+  panel.innerHTML =
+    '<div style="' +
+      "display:flex;" +
+      "justify-content:space-between;" +
+      "align-items:center;" +
+      "margin-bottom:12px" +
+    '">' +
+
+      '<strong style="font-size:16px">' +
+        "Society Save Manager" +
+      "</strong>" +
+
+      '<button id="ssm-close" ' +
+        'style="cursor:pointer">' +
+        "×" +
+      "</button>" +
+
+    "</div>" +
+
+
+    '<div style="' +
+      "display:flex;" +
+      "gap:6px;" +
+      "margin-bottom:10px" +
+    '">' +
+
+      '<button id="ssm-save">' +
+        "Save Backup" +
+      "</button>" +
+
+      '<button id="ssm-refresh">' +
+        "Refresh" +
+      "</button>" +
+
+    "</div>" +
+
+
+    '<div id="ssm-status" ' +
+      'style="margin-bottom:10px;color:#aaa">' +
+    "</div>" +
+
+
+    '<div id="ssm-list">' +
+    "</div>";
+
+
+  document.body.appendChild(
+    panel
+  );
+
+
+  const list =
+    panel.querySelector(
+      "#ssm-list"
+    );
+
+
+  const status =
+    panel.querySelector(
+      "#ssm-status"
+    );
+
+
+  function setStatus(
+    text
+  ) {
+    status.textContent =
+      text;
+  }
+
+
+  function makeButton(
+    text
+  ) {
+
+    const button =
+      document.createElement(
+        "button"
+      );
+
+
+    button.textContent =
+      text;
+
+
+    button.style.cssText =
+      [
+        "cursor:pointer",
+        "margin:2px",
+        "padding:5px 8px"
+      ].join(";");
+
+
+    return button;
+  }
+
+
+  /* ============================================================
+   * REFRESH UI
+   * ============================================================ */
+
+  async function refreshList() {
+
+    list.innerHTML =
+      "";
+
+    setStatus(
+      "Loading backups..."
+    );
+
+
+    try {
+
+      const rows =
+        await backups();
+
+
+      if (
+        !rows ||
+        !rows.length
+      ) {
+
+        list.textContent =
+          "No Society backups yet.";
+
+        setStatus(
+          ""
+        );
+
+        return;
+      }
+
+
+      for (
+        const backup of rows
+      ) {
+
+        const row =
+          document.createElement(
+            "div"
+          );
+
+
+        row.style.cssText =
+          [
+            "border:1px solid #333",
+            "border-radius:7px",
+            "padding:9px",
+            "margin-bottom:7px"
+          ].join(";");
+
+
+        const title =
+          document.createElement(
+            "div"
+          );
+
+
+        title.style.cssText =
+          "font-weight:bold;font-size:14px";
+
+
+        title.textContent =
+          backup.slot_name ||
+          "Unnamed Save";
+
+
+        const date =
+          document.createElement(
+            "div"
+          );
+
+
+        date.style.cssText =
+          "color:#999;font-size:11px;margin:4px 0 7px";
+
+
+        date.textContent =
+          backup.created_at
+            ? new Date(
+                backup.created_at
+              ).toLocaleString()
+            : "";
+
+
+        const info =
+          document.createElement(
+            "div"
+          );
+
+
+        info.style.cssText =
+          "color:#777;font-size:10px;margin-bottom:5px";
+
+
+        info.textContent =
+          "ID: " +
+          backup.id +
+          " • " +
+          (
+            backup.save_data
+              ? backup.save_data.length
+              : 0
+          ) +
+          " chars";
+
+
+        const restoreButton =
+          makeButton(
+            "Restore"
+          );
+
+
+        const deleteButton =
+          makeButton(
+            "Delete"
+          );
+
+
+        restoreButton.onclick =
+          async () => {
+
+            restoreButton.disabled =
+              true;
+
+            try {
+
+              await restoreBackup(
+                backup
+              );
+
+            } finally {
+
+              restoreButton.disabled =
+                false;
+            }
+          };
+
+
+        deleteButton.onclick =
+          async () => {
+
+            const confirmed =
+              confirm(
+                'Delete "' +
+                  (
+                    backup.slot_name ||
+                    "Unnamed Save"
+                  ) +
+                  '"?'
+              );
+
+
+            if (!confirmed) {
+              return;
+            }
+
+
+            deleteButton.disabled =
+              true;
+
+
+            try {
+
+              await deleteBackup(
+                backup.id
+              );
+
+            } catch (error) {
+
+              alert(
+                "Delete failed:\n\n" +
+                  (
+                    error.message ||
+                    String(error)
+                  )
+              );
+
+            } finally {
+
+              deleteButton.disabled =
+                false;
+            }
+          };
+
+
+        row.appendChild(
+          title
+        );
+
+        row.appendChild(
+          date
+        );
+
+        row.appendChild(
+          info
+        );
+
+        row.appendChild(
+          restoreButton
+        );
+
+        row.appendChild(
+          deleteButton
+        );
+
+
+        list.appendChild(
+          row
+        );
+      }
+
+
+      setStatus(
+        rows.length +
+          " backup" +
+          (
+            rows.length === 1
+              ? ""
+              : "s"
+          ) +
+          " found."
+      );
+
+
+    } catch (error) {
+
+      console.error(
+        error
+      );
+
+
+      setStatus(
+        "Error: " +
+          (
+            error.message ||
+            String(error)
+          )
+      );
+    }
+  }
+
+
+  /* ============================================================
+   * CLOSE
+   * ============================================================ */
+
+  panel.querySelector(
+    "#ssm-close"
+  ).onclick =
+    () => {
+
+      panel.style.display =
+        "none";
+    };
+
+
+  /* ============================================================
+   * REFRESH BUTTON
+   * ============================================================ */
+
+  panel.querySelector(
+    "#ssm-refresh"
+  ).onclick =
+    () => {
+
+      refreshList();
+    };
+
+
+  /* ============================================================
+   * SAVE BUTTON
+   * ============================================================ */
+
+  panel.querySelector(
+    "#ssm-save"
+  ).onclick =
+    async () => {
+
+      const button =
+        panel.querySelector(
+          "#ssm-save"
+        );
+
+
+      button.disabled =
+        true;
+
+
+      try {
+
+        await save();
+
+      } catch (error) {
+
+        console.error(
+          error
+        );
+
+
+        alert(
+          "Save failed:\n\n" +
+            (
+              error.message ||
+              String(error)
+            )
+        );
+
+      } finally {
+
+        button.disabled =
+          false;
+      }
+    };
+
+
+  /* ============================================================
+   * HOTKEY
+   * ============================================================ */
+
+  document.addEventListener(
+    "keydown",
+    event => {
+
+      if (
+        event.key !==
+          CONFIG.HOTKEY
+      ) {
+        return;
+      }
+
+
+      if (
+        event.ctrlKey ||
+        event.altKey ||
+        event.metaKey ||
+        event.shiftKey
+      ) {
+        return;
+      }
+
+
+      const target =
+        event.target;
+
+
+      if (
+        target &&
+        (
+          target.tagName ===
+            "INPUT" ||
+          target.tagName ===
+            "TEXTAREA" ||
+          target.isContentEditable
+        )
+      ) {
+        return;
+      }
+
+
+      panel.style.display =
+        panel.style.display ===
+          "none"
+            ? "block"
+            : "none";
+    }
+  );
+
+
+  /* ============================================================
+   * CONSOLE API
+   * ============================================================ */
+
+  window.gameSaveManager = {
+
+    detect,
+
+    save,
+
+    backups,
+
+    all:
+      allBackups,
+
+    restore:
+      restoreBackup,
+
+    restoreById,
+
+    restoreLive,
+
+    refresh:
+      refreshList,
+
+    config:
+      CONFIG
+  };
+
+
+  /* ============================================================
+   * START
+   * ============================================================ */
+
+  console.log(
+    "%cSociety Save Manager loaded.",
+    "font-weight:bold;font-size:14px"
+  );
+
+
+  console.log(
+    "Hotkey:",
+    CONFIG.HOTKEY
+  );
+
+
+  console.log(
+    "Console API:"
+  );
+
+
+  console.log(
+    "gameSaveManager.detect()"
+  );
+
+
+  console.log(
+    "gameSaveManager.save()"
+  );
+
+
+  console.log(
+    "gameSaveManager.backups()"
+  );
+
+
+  console.log(
+    "gameSaveManager.restore()"
+  );
+
+
+  console.log(
+    "gameSaveManager.restoreById(id)"
+  );
+
+
+  console.log(
+    "gameSaveManager.all()"
+  );
+
+
+  refreshList();
+
+})();
+&lt;/script&gt;</code></pre>
+
 </body>
 </html>
